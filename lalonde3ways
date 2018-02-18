@@ -1,0 +1,168 @@
+install.packages("Matching")
+library("Matching")
+library(randomForest)
+install.packages("arm")
+library(arm)
+data(lalonde)
+
+no_degr <- lalonde[which(lalonde$nodegr == 1), ]
+degr <- lalonde[which(lalonde$nodegr == 0), ]
+
+# Problem 1 
+
+lm1.degr <- lm(re78 ~ treat + black + re75, data = degr)
+lm1.nodegr <- lm(re78 ~ treat + black + re75, data = no_degr)
+
+# degree data subset
+summary(lm1.degr) # treatment variable est. coef. = 3019.9131, p = 0.0466, statistically significant at the p < 0.05 level
+confint(lm1.degr) # the 95% CI for the estimate of the coefficients of the treatment variable is [46.772,5993.054]
+
+# no degree data subset
+summary(lm1.nodegr) # treatment variable est. coef. = 1200, p = 0.0846, NOT statistically significant at the p < 0.05 level
+confint(lm1.nodegr) # the 95% CI for the estimate of the coefficients of the treatment variable is [-164.490,2563.6492133]
+
+# Problem 2 
+
+lm2 <- lm(re78 ~ treat + black + re75 + nodegr + I(treat*nodegr), data = lalonde)
+display(lm2)
+
+lm2.sim <- sim(lm2) # simulate multiple regression coefficient estimates 
+coef.sim <- coef(lm2.sim)  
+
+# average simulated coefficients 
+estimate.treat.coeff <- mean(coef.sim[, 2])
+estimate.interaction.coeff <- mean(coef.sim[, 6]) 
+
+treateff.degr <- estimate.interaction.coeff*0 + estimate.treat.coeff # treatment effect if with degree = + 2983.20 USD added
+treateff.nodegr <- estimate.interaction.coeff*1 + estimate.treat.coeff # treatment effect if no degree = + 1111.09 USD added
+
+
+t.test(coef.sim[, 2]) # the 95% CI for the estimate of the treatment effect with degree is [2729.589,3236.824]
+t.test(coef.sim[, 6]+coef.sim[, 2]) # the 95% CI for the estimate of the treatment effect without degree is [972.0099,1250.1687]
+
+hist(coef.sim[, 2], main = 'Distribution of Treatment Effect With Degree Simulation', xlab="treatment effect")
+hist(coef.sim[, 6]+coef.sim[, 2], main = 'Distribution of Treatment Effect Without Degree Simulation', xlab="treatment effect")
+
+# Problem 3 
+
+u78 <- ifelse(lalonde$re78 > 0, 0, 1)
+lalonde <- data.frame(lalonde, u78)
+
+no_degr <- lalonde[which(lalonde$nodegr == 1), ]
+degr <- lalonde[which(lalonde$nodegr == 0), ]
+
+
+glm1.degr <- glm(u78 ~ treat + black + re75, family = binomial, data = degr)
+glm1.nodegr <- glm(u78 ~ treat + black + re75, family = binomial, data = no_degr)
+
+# degree data subset
+summary(glm1.degr) # treatment variable est. coef. = 0.743, p = 0.120, NOT statistically significant at the p < 0.05 level
+confint(glm1.degr) # the 95% CI for the estimate of the coefficients of the treatment variable is [-0.1858164,1.7010377127]
+
+# no degree data subset
+summary(glm1.nodegr) # treatment variable est. coef. = 0.482, p = 0.052, NOT statistically significant at the p < 0.05 level
+confint(glm1.nodegr) # the 95% CI for the estimate of the coefficients of the treatment variable is [2.450480e-04,0.9769713312]
+
+# degree counterfactual datapoint 
+predict.u78.degr <- predict(glm1.degr, degr[1, ], type="response")
+summary(predict.u78.degr)
+predict.u78.degr
+
+degr[1,]$treat
+degr[1,]$treat <- 0
+
+notreat.predict.u78.degr <- predict(glm1.degr, degr[1, ], type="response")
+
+treateff.degr <- abs(predict.u78.degr - notreat.predict.u78.degr) # difference in outcomes to get treatment effect w/degree
+treateff.degr 
+
+degr[1,]$treat <- 1
+
+# No Degree counterfactual datapoint
+predict.u78.nodegr <- predict(glm1.nodegr, no_degr[1, ], type="response")
+summary(predict.u78.nodegr)
+predict.u78.nodegr
+
+no_degr[1,]$treat
+no_degr[1,]$treat <- 1
+
+notreat.predict.u78.nodegr <- predict(glm1.nodegr, no_degr[1, ], type="response")
+
+treateff.nodegr <- abs(predict.u78.nodegr - notreat.predict.u78.nodegr) # difference in outcomes to get treatment effect w/o degree
+treateff.nodegr
+
+no_degr[1,]$treat <- 0
+
+# Problem 4 
+library(tree)
+library(randomForest)
+
+
+rf.degr <- randomForest(re78 ~ treat + age + educ + black + hisp + married + re74 + u75 + re75, data = degr, ntree = 10000, mtry = 3, importance = TRUE)
+importance(rf.degr)
+varImpPlot(rf.degr)
+
+rf.nodegr <- randomForest(re78 ~ treat + age + educ + black + hisp + married + re74 + u75 + re75, data = no_degr, ntree = 10000, mtry = 3, importance = TRUE)
+importance(rf.nodegr)
+varImpPlot(rf.nodegr)
+
+lm2.degr <- lm(re78 ~ treat + black + re74, data = degr)
+lm2.nodegr <- lm(re78 ~ treat + re74 + re75, data = no_degr)
+
+# degree data subset
+summary(lm2.degr)  
+summary(lm1.degr) # treatment variable est. coef. = 3019.9131, p = 0.0466, statistically significant at the p < 0.05 level
+confint(lm2.degr) 
+confint(lm1.degr) # the 95% CI for the estimate of the coefficients of the treatment variable is [46.772,5993.054]
+
+# no degree data subset
+summary(lm2.nodegr) 
+summary(lm1.nodegr) # treatment variable est. coef. = 3019.9131, p = 0.0466, statistically significant at the p < 0.05 level
+confint(lm2.nodegr) 
+confint(lm1.nodegr)
+
+
+# Bonus 1 - Cross-validation
+library(boot)
+
+# Degree
+cv.error.10.degr <- rep(0 ,10) # 10-fold CV 
+for (i in 1:10) { 
+  glm.fit.degr <- glm(re78 ~ poly(treat + black + re74, i), data = degr)
+  cv.error.10.degr[i] <- cv.glm(degr, glm.fit.degr, K = 10)$delta[1]
+  }
+cv.error.10.degr
+plot(cv.error.10.degr) # no evidence that using a quadratic, or a higher degree polynomial will lower the MSE for the degree model
+
+
+# No Degree
+cv.error.10.nodegr <- rep(0 ,10) # 10-fold CV 
+for (i in 1:10) { 
+  glm.fit.nodegr <- glm(re78 ~ poly(treat + re74 + re75 ,i), data = no_degr)
+  cv.error.10.nodegr[i] <- cv.glm(no_degr, glm.fit.nodegr, K = 10)$delta[1]
+}
+cv.error.10.nodegr
+plot(cv.error.10.nodegr) # no evidence that using a quadratic, or a higher degree polynomial will lower the MSE for the no degree model
+
+
+# Bonus 2 - Bootstrapping
+
+# Degree
+boot.degr.fn <- function(data, index) {
+  return(coef(lm(re78 ~ treat + black + re75, data = data, subset = index)))
+}
+
+boot.degr.fn(degr, sample(nrow(degr), nrow(degr), replace = T))
+boot(degr, boot.degr.fn, 1000)
+
+summary(lm(re78 ~ treat + black + re75, data = degr))$coef # Bootstrapping shows a bigger SE for the tret. coeff. 
+
+# No degree
+boot.nodegr.fn <- function(data, index) {
+  return(coef(lm(re78 ~ treat + black + re75, data = data, subset = index)))
+}
+
+boot.nodegr.fn(no_degr, sample(nrow(no_degr), nrow(no_degr), replace = T))
+boot(no_degr, boot.nodegr.fn, 1000)
+
+summary(lm(re78 ~ treat + black + re75, data = no_degr))$coef # Bootstrapping shows a bigger SE for the tret. coeff. 
